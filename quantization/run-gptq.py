@@ -4,7 +4,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='GPTQ Quantization')
 parser.add_argument('--model_name', default="meta-llama/Llama-2-7b-chat-hf", help='model_name')
-parser.add_argument('--cache_dir', default="/content/drive/MyDrive/quantize_hal_project/cache", help='cache dir')
+parser.add_argument('--cache_dir', help='cache dir')
 parser.add_argument('--save_dir', default="/content/drive/MyDrive/quantize_hal_project/save", help='save dir')
 parser.add_argument('--bits', type=int, required=True, help='bits')
 args = parser.parse_args()

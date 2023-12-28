@@ -6,8 +6,8 @@ import time
 from transformers import GenerationConfig, AutoModelForCausalLM, AutoTokenizer
 from autograd_4bit import load_llama_model_4bit_low_ram, load_wizardlm #Autograd4bitQuantLinear
 from nf4 import load_nf4_model
-# from peft import PeftModel
-# from peft.tuners.lora import Linear4bitLt
+#from peft import PeftModel
+#from peft.tuners.lora import Linear4bitLt
 
 def load_trivia_questions(file_path):
     with open(file_path, 'r') as file:
@@ -51,7 +51,7 @@ def grade_answers(question_data, llm_answer):
     if "i don't know" in normalized_llm_answer or normalized_llm_answer == "d" or normalized_llm_answer == "d." or "i'm sorry" in normalized_llm_answer or "i'm not sure" in normalized_llm_answer:
         return f"{llm_answer} (uncertain)"
 
-    return f"{llm_answer} (incorrect {correct_answer['choice']}.)"
+    return f"{llm_answer} (incorrect, correct answer: {correct_answer['text']}.)"
 
 def query_openai_gpt(prompt, engine):
     while True:
@@ -124,10 +124,12 @@ def main():
     parser.add_argument('--use-gpt3-5', action='store_true', help='Use GPT-3.5')
     parser.add_argument('--use-gpt4all', action='store_true', help='Use GPT4All')
     parser.add_argument('--use-llama', action='store_true', help='Use Llama')
+    parser.add_argument('--use-custom', type=bool, default=False, help='Use Custom Model')
     parser.add_argument('--openai-key', type=str, help='OpenAI API key')
     parser.add_argument('--trivia', type=str, help='File path to trivia questions')
-
+  
     parser.add_argument('--model_dir', help='path of local model')
+    parser.add_argument('--model_name')
     parser.add_argument('--use_nf4',type=bool, default=False, help='test on nf4 quantization, will be run at time of initialization')
     parser.add_argument('--nf4_model',help='model to use for nf4 quantization')
     parser.add_argument('--nf4_cache',help='cache to use for nf4 quantization')
@@ -147,7 +149,7 @@ def main():
     if use_gpt_3:
         openai.api_key = args.openai_key
 
-    if not use_gpt_3:
+    if not use_gpt_3 and not args.use_custom:
         if use_gpt4all:
             config_path = './models/llama-7b-hf/'
             model_path = './weights/llama-7b-4bit.pt'
@@ -156,24 +158,25 @@ def main():
             config_path = './models/llama-7b-hf/'
             model_path = '/content/drive/MyDrive/llama-quant/llama-2-7b/gptq_model-4bit-128g.safetensors'   #'./weights/llama-7b-4bit.pt'
             lora_path = './loras/alpaca7B-lora/'
-
         
+        model, tokenizer = load_llama_model_4bit_low_ram(config_path, model_path)
+        if not args.use_llama:
+            model = PeftModel.from_pretrained(model, lora_path)
+            print('Fitting 4bit scales and zeros to half')
+            for n, m in model.named_modules():
+                if isinstance(m, Autograd4bitQuantLinear) or isinstance(m, Linear4bitLt):
+                    m.zeros = m.zeros.half()
+                    m.scales = m.scales.half()
+                    m.bias = m.bias.half()
+
+    else:
         if not args.use_nf4:
-          model = AutoModelForCausalLM.from_pretrained(args.model_dir, torch_dtype="auto", device_map="auto")
+          model = AutoModelForCausalLM.from_pretrained(args.model_dir, torch_dtype=torch.float16, device_map="auto")
           tokenizer = AutoTokenizer.from_pretrained(args.model_dir)
           model.to(device)
         else:
           model, tokenizer = load_nf4_model(args.nf4_model, args.nf4_cache)
-        print(model.dtype)
-        # model, tokenizer = load_llama_model_4bit_low_ram(config_path, model_path)
-        # if not args.use_llama:
-        #     model = PeftModel.from_pretrained(model, lora_path)
-        #     print('Fitting 4bit scales and zeros to half')
-        #     for n, m in model.named_modules():
-        #         if isinstance(m, Autograd4bitQuantLinear) or isinstance(m, Linear4bitLt):
-        #             m.zeros = m.zeros.half()
-        #             m.scales = m.scales.half()
-        #             m.bias = m.bias.half()
+    
     file_path = args.trivia
     trivia_data = load_trivia_questions(file_path)
 
@@ -182,22 +185,24 @@ def main():
     unknown = []
 
     if args.use_gpt3_5:
-        model_name = "text-davinci-003"
+      model_name = "text-davinci-003"
     elif use_gpt_3:
-        model_name = "text-davinci-002"
+      model_name = "text-davinci-002"
     elif args.use_llama:
-        model_name = "llama-4bit"
+      model_name = "llama-4bit"
     elif args.use_gpt4all:
-        model_name = "gpt4all-4bit"
+      model_name = "gpt4all-4bit"
+    elif not args.use_custom:
+      model_name = "alpaca-lora-4bit"
     else:
-        model_name = "alpaca-lora-4bit"
-
+      model_name = args.model_name
+      
     for i, question_data in enumerate(trivia_data):
         question_string = generate_question_string(question_data)
         prompt = question_string
         # prompt = generate_prompt(question_string)
 
-        # print(f"Question {i+1}: {question_string}")
+        print(f"Question {i+1}: {question_string}")
         if use_gpt_3:
             llm_answer = query_openai_gpt(prompt, model_name)
         else:

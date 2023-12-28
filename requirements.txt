@@ -5,3 +5,6 @@ peft
 accelerate 
 optimum
 openai
+autoawq
+autoawq-kernels
+--upgrade transformers
