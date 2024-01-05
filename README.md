@@ -28,7 +28,7 @@ python run-awq.py \
 --bits  bits_to_quantize \
 ```
 
-For NF4:
+For NF4: \
 Quantization is done at the same time the test is induced. Set use_nf4 to true, nf4_model to the model directory, and (optionally) nf4_cache to the cache directory.
 
 ## Administering the Hallucination Test
