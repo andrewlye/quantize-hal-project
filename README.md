@@ -16,7 +16,7 @@ python run-gptq.py \
 --model_name /path_to_local_or_HF_model \
 --cache_dir /cache_directory \
 --save_dir /where_to_save_quantized_model \
---bits  bits_to_quantize \
+--bits  bits_to_quantize
 ```
 
 For AWQ:
@@ -25,7 +25,7 @@ python run-awq.py \
 --model_name /path_to_local_or_HF_model \
 --cache_dir /cache_directory \
 --save_dir /where_to_save_quantized_model \
---bits  bits_to_quantize \
+--bits  bits_to_quantize
 ```
 
 For NF4: \
