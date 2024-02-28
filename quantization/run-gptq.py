@@ -1,22 +1,32 @@
+import os
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, GPTQConfig, LlamaTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from optimum.gptq import GPTQQuantizer, load_quantized_model
 import argparse
+import json
+os.environ['HOME'] = '/scratch/zx22/andrew'
 
 parser = argparse.ArgumentParser(description='GPTQ Quantization')
-parser.add_argument('--model_name', default="meta-llama/Llama-2-7b-chat-hf", help='model_name')
-parser.add_argument('--cache_dir', help='cache dir')
-parser.add_argument('--save_dir', default="/content/drive/MyDrive/quantize_hal_project/save", help='save dir')
+parser.add_argument('--model-name', default="meta-llama/Llama-2-13b-chat-hf", help='model_name')
+parser.add_argument('--cache-dir', default="/scratch/zx22/andrew/quantize-hal-project/cache", help='cache dir')
+parser.add_argument('--save-dir', default="/scratch/zx22/andrew/quantize-hal-project/quant-models", help='save dir')
 parser.add_argument('--bits', type=int, required=True, help='bits')
+parser.add_argument('--token', default='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')
 args = parser.parse_args()
 print(args)
 
-access_token = "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"
+save_folder = f'{args.save_dir}/gptq'
 
-tokenizer = AutoTokenizer.from_pretrained(args.model_name, token = access_token)
-quantization_config = GPTQConfig(bits=args.bits, group_size=128, dataset = "c4", tokenizer=tokenizer)
+model_name = args.model_name
+tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
+model = AutoModelForCausalLM.from_pretrained(model_name, low_cpu_mem_usage=True, torch_dtype=torch.float16, device_map='auto')
 
-model = AutoModelForCausalLM.from_pretrained(args.model_name, torch_dtype="auto", 
-device_map="auto", quantization_config=quantization_config, token = access_token, cache_dir=args.cache_dir)
+quantizer = GPTQQuantizer(bits=args.bits, dataset="wikitext2", model_seqlen = 2048)
+quantized_model = quantizer.quantize_model(model, tokenizer)
 
-model.save_pretrained(args.save_dir)
-tokenizer.save_pretrained(args.save_dir)
+quantized_model.save_pretrained(save_folder, safe_serialization=True)
+tokenizer = AutoTokenizer.from_pretrained(model_name).save_pretrained(save_folder)
+
+with open(os.path.join(save_folder, "quantize_config.json"), "w", encoding="utf-8") as f:
+  quantizer.disable_exllama = False
+  json.dump(quantizer.to_dict(), f, indent=2)
