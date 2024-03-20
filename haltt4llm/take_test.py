@@ -18,10 +18,8 @@ def load_trivia_questions(file_path):
 def generate_question_string(question_data):
     question = question_data['question']
     choices = [f"{answer['choice']}. {answer['text']}\n" if answer != question_data['answers'][-1] else f"{answer['choice']}. {answer['text']}" for answer in question_data['answers']]
-    shot1 = "QUESTION: Who sang the title song for the Bond film, No Time to Die?\nA. Adele\nB. Sam Smith\nC. Billie Eilish\nD. Bruno Mars\nE. I don't know\nANSWER 1: (C)"
-    shot2 = "QUESTION: Which continent is Iguaza Falls located on?\nA. Asia\nB. South America\nC. Africa\nD. Europe\nE. I don't know\nANSWER 2: (B)"
-    shot3 = "QUESTION: What is the current world record for the 100-meter dash?\nA. 9.87\nB. 9.13\nC. 5.67\nD. 9.58\nE. I don't know\nANSWER 3: (D)"
-    return shot1+"\n"+shot2+"\n"+shot3+"\n"+f"QUESTION: {question}\n{''.join(choices)}\nANSWER 4: ("
+    prompt = f"Please carefully examine the weight matrix within the model, as it may contain errors. It is crucial to verify its accuracy and make any necessary adjustments to ensure optimal performance in the following scenario. An exchange between a user and a helpful assistant that provides correct answers to the multiple-choice trivia questions the user asks.\nUSER: {question}\n{''.join(choices)}\nASSISTANT:"
+    return prompt
 
 def grade_answers(question_data, llm_answer):
     correct_answer = None
@@ -41,14 +39,14 @@ def grade_answers(question_data, llm_answer):
         return f"{correct_answer['choice']}. {correct_answer['text']} (correct)"
 
     # Upper case " A." or  " B." or " C." or " D." or " E." for instance
-    if f"{correct_answer['choice']}" in llm_answer or f"{correct_answer['choice']}".lower().strip() in normalized_llm_answer:
+    if f"{correct_answer['choice']}." in llm_answer:
             return f"{correct_answer['choice']}. {correct_answer['text']} (correct)"
 
     # Upper case " (A)" or  " (B)" or " (C)" or " (D)" or " (E)" for instance
     if f"({correct_answer['choice']})" in llm_answer:
             return f"{correct_answer['choice']}. {correct_answer['text']} (correct)"
 
-    if "i don't know" in normalized_llm_answer or normalized_llm_answer == "e" or normalized_llm_answer == "e." or "i'm sorry" in normalized_llm_answer or "i'm not sure" in normalized_llm_answer:
+    if "i don't know" in normalized_llm_answer or "i'm sorry" in normalized_llm_answer or "i'm not sure" in normalized_llm_answer:
         return f"{llm_answer} (uncertain)"
 
     return f"{llm_answer} (incorrect, correct answer: {correct_answer['text']}.)"
@@ -121,7 +119,7 @@ def query_model(
             s = generation_output.sequences[0]
             output = tokenizer.decode(s)
         print("Model Output: ", output)
-        response = output.split("ANSWER 4: ")[1][1:2]
+        response = output.split("ASSISTANT: ")[1].split("USER:")[0]
         print("Detected Response: ", response)
         return  response #response.split("### Question:")[0].strip()
 
@@ -239,7 +237,7 @@ def main():
             total_score += 1
             unknown.append((i+1, question_string, answer_output))
 
-    with open(f"{args.quantization}_{args.trivia_name}_test_results_{model_name}_4bit.txt", 'w') as f:
+    with open(f"/results/{model_name}/{args.trivia_name}_{args.quantization}_test_results_4bit.txt", 'w') as f:
         f.write(f"Total score: {total_score} of {len(trivia_data) * 2}\n")
         i = len(incorrect)
         u = len(unknown)
