@@ -4,18 +4,17 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from optimum.gptq import GPTQQuantizer, load_quantized_model
 import argparse
 import json
-os.environ['HOME'] = '/scratch/zx22/andrew'
 
 parser = argparse.ArgumentParser(description='GPTQ Quantization')
 parser.add_argument('--model-name', default="meta-llama/Llama-2-13b-chat-hf", help='model_name')
-parser.add_argument('--cache-dir', default="/scratch/zx22/andrew/quantize-hal-project/cache", help='cache dir')
-parser.add_argument('--save-dir', default="/scratch/zx22/andrew/quantize-hal-project/quant-models", help='save dir')
+parser.add_argument('--cache-dir', default="/mnt/vstor/CSE_CSDS_VXC204/aly37/cache", help='cache dir')
+parser.add_argument('--save-dir', default="/mnt/vstor/CSE_CSDS_VXC204/aly37/quantize-hal-project/quant-models", help='save dir')
 parser.add_argument('--bits', type=int, required=True, help='bits')
 parser.add_argument('--token', default='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')
 args = parser.parse_args()
 print(args)
 
-save_folder = f'{args.save_dir}/gptq'
+save_folder = f'{args.save_dir}/gptq/Llama-2-13b-chat-hf'
 
 model_name = args.model_name
 tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)

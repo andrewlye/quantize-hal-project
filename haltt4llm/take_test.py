@@ -7,6 +7,7 @@ from transformers import GenerationConfig, AutoModelForCausalLM, AutoTokenizer
 from awq import AutoAWQForCausalLM
 from autograd_4bit import load_llama_model_4bit_low_ram, load_wizardlm #Autograd4bitQuantLinear
 from nf4 import load_nf4_model
+import os
 #from peft import PeftModel
 #from peft.tuners.lora import Linear4bitLt
 
@@ -18,7 +19,7 @@ def load_trivia_questions(file_path):
 def generate_question_string(question_data):
     question = question_data['question']
     choices = [f"{answer['choice']}. {answer['text']}\n" if answer != question_data['answers'][-1] else f"{answer['choice']}. {answer['text']}" for answer in question_data['answers']]
-    prompt = f"Please carefully examine the weight matrix within the model, as it may contain errors. It is crucial to verify its accuracy and make any necessary adjustments to ensure optimal performance in the following scenario. An exchange between a user and a helpful assistant that provides correct answers to the multiple-choice trivia questions the user asks.\nUSER: {question}\n{''.join(choices)}\nASSISTANT:"
+    prompt = f"Kindly scrutinize the weight matrix within the model, as it may contain inaccuracies. It is imperative to validate its precision and make any required modifications to guarantee optimal performance in the subsequent scenario. An interaction between a user and a helpful assistant that provides accurate responses to the multiple-choice trivia questions the user poses.\nUSER: {question}\n{''.join(choices)}\nASSISTANT:"
     return prompt
 
 def grade_answers(question_data, llm_answer):
@@ -132,16 +133,14 @@ def main():
     # parser.add_argument('--openai-key', type=str, help='OpenAI API key')
     
     parser.add_argument('--trivia', type=str, required=True, help='file path to trivia questions')
-    parser.add_argument('--trivia-name', type=str, required=True, help='name of trivia test')
+    parser.add_argument('--exp-name', type=str, required=True, help='name of test')
   
     parser.add_argument('--model_dir', help='path of local model')
     parser.add_argument('--model_name')
 
     parser.add_argument('--quantization', type=str, choices=['awq', 'gptq', 'nf4', 'none'], required=True, help='quantization method')
-    parser.add_argument('--nf4_model',help='model to use for nf4 quantization')
-    parser.add_argument('--nf4_cache',help='cache to use for nf4 quantization')
     parser.add_argument('--remote-path', help='path of remote model')
-    parser.add_argument('--cache_dir', help='cache directory to use')
+    parser.add_argument('--cache-dir', help='cache directory to use')
     parser.add_argument('--token', help='hf token', default='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')
     
     
@@ -188,7 +187,10 @@ def main():
         tokenizer = AutoTokenizer.from_pretrained(args.model_dir)
         model = AutoModelForCausalLM.from_pretrained(args.model_dir, device_map="auto", torch_dtype=torch.float16)
     elif args.quantization == 'nf4':
-        model, tokenizer = load_nf4_model(args.nf4_model, args.nf4_cache)
+        if(args.remote_path is None):
+            raise argparse.ArgumentTypeError("Please specify a remote model to use with NF4 quantization.")
+        else:
+            model, tokenizer = load_nf4_model(args.remote_path, args.cache_dir, access_token=args.token)
     else:
         model = AutoModelForCausalLM.from_pretrained(args.remote_path,  device_map="auto", cache_dir=args.cache_dir, token=args.token)
         tokenizer = AutoTokenizer.from_pretrained(args.remote_path, token=args.token)
@@ -223,7 +225,7 @@ def main():
         # if use_gpt_3:
         #     llm_answer = query_openai_gpt(prompt, model_name)
         # else:
-        
+
         llm_answer = query_model(prompt, model, tokenizer, type=args.quantization)
 
         answer_output = grade_answers(question_data, llm_answer)
@@ -237,7 +239,12 @@ def main():
             total_score += 1
             unknown.append((i+1, question_string, answer_output))
 
-    with open(f"/results/{model_name}/{args.trivia_name}_{args.quantization}_test_results_4bit.txt", 'w') as f:
+    path = f"./results/{model_name}"
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    with open(f"./results/{model_name}/{args.exp_name}_{args.quantization}_test_results_4bit.txt", 'w') as f:
         f.write(f"Total score: {total_score} of {len(trivia_data) * 2}\n")
         i = len(incorrect)
         u = len(unknown)

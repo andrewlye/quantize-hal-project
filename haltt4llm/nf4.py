@@ -11,8 +11,8 @@ from transformers import (
 )
 access_token = "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"
 
-def load_nf4_model(model_id, cache_dir):
-  tokenizer = AutoTokenizer.from_pretrained(model_id, token = access_token)
+def load_nf4_model(model_id, cache_dir, access_token):
+  tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir, token=access_token)
   quantization_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 load_in_8bit=False,
@@ -27,6 +27,7 @@ def load_nf4_model(model_id, cache_dir):
                 cache_dir=cache_dir,
                 device_map="auto",
                 quantization_config=quantization_config,
-                torch_dtype=torch.float16)
+                torch_dtype=torch.float16,
+                token=access_token)
   
   return model, tokenizer
